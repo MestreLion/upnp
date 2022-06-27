@@ -377,7 +377,7 @@ def discover(
     log.debug("Broadcasting discovery search to %s:\n%s", addr, data)
     sock.sendto(bytes(data, 'ascii'), addr)
 
-    devices = {}
+    devices = set()
     while True:
         try:
             data, (addr, _) = sock.recvfrom(SSDP_BUFFSIZE)
@@ -393,6 +393,7 @@ def discover(
             # TODO: drop this log after code is mature and skip dupes silently
             log.debug("Ignoring duplicated device: %s", ssdp)
             continue
+        devices.add(location)
 
         # Some unrelated devices reply to discovery even when setting appropriate ST in M-SEARCH
         if search_target != SEARCH_TARGET.ALL and search_target != ssdp.headers.get('ST'):
