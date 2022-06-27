@@ -44,9 +44,10 @@ import urllib.parse
 import lxml.etree as ET
 import requests
 
-
 SSDP_MAX_MX:        int     = 5  # 2.0 Spec caps value to 5
 SSDP_BUFFSIZE:      int     = 8192
+SSDP_ADDR:          str     = '239.255.255.250'
+SSDP_PORT:          int     = 1900
 
 log = logging.getLogger(__name__)
 
@@ -344,11 +345,13 @@ class util:
         return value
 
 
-def discover(search_target:str=None, *, timeout:int=SSDP_MAX_MX) -> list:
-    addr = ("239.255.255.250", 1900)
+def discover(
+        search_target:str=SEARCH_TARGET.ALL, *,
+        dest_addr:str=SSDP_ADDR,
+        timeout:int=SSDP_MAX_MX,
+    ) -> list:
+    addr = (dest_addr, 1900)
     timeout = util.clamp(timeout, 1, SSDP_MAX_MX)
-    if not search_target:
-        search_target = SEARCH_TARGET.ALL
 
     data = re.sub('[\t ]*\r?\n[\t ]*', '\r\n', f"""
             M-SEARCH * HTTP/1.1
@@ -446,14 +449,29 @@ def parse_args(argv=None):
                        action="store_const",
                        help="Verbose mode, output extra info.")
 
+    parser.add_argument('-d', '--destination',
+                        default=SSDP_ADDR,
+                        help="Destination IP address."
+                             " [Default: '%(default)s' (multicast)]")
+
+    parser.add_argument('-t', '--timeout',
+                        default=3,
+                        type=int,
+                        help="Timeout for SSDP M-SEARCH discovery."
+                             " [Default: '%(default)s' (multicast)]")
+
+    parser.add_argument('-s', '--st',
+                        default=SEARCH_TARGET.ALL,
+                        help="Search target (ST) parameter."
+                             " [Default: %(default)s]")
+
     parser.add_argument('-a', '--action',
-                        default='GetExternalIPAddress',
-                        help="Action to perform."
-                            " [Default: %(default)s]")
+                        help="SOAP action to perform."
+                             " [Default: %(default)s]")
 
     parser.add_argument(nargs='*',
                         dest='args',
-                        help="Arguments to Action")
+                        help="Arguments to SOAP Action")
 
     args = parser.parse_args(argv)
     args.debug = args.loglevel == logging.DEBUG
@@ -467,11 +485,9 @@ def main(argv):
                         format='%(levelname)-5.5s: %(message)s')
     log.debug(args)
 
-    ST = ""
-
     actions = []
     print("Devices:")
-    for location, device in discover(ST, timeout=5):
+    for location, device in discover(args.st, timeout=args.timeout, dest_addr=args.destination):
         print(f'{device!r}: {device}')
         for service in device.services.values():
             print('\t' + repr(service))
