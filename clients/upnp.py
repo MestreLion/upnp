@@ -144,6 +144,7 @@ class XMLElement:
 class SSDP:
     """Device/Service from SSDP M-Search response"""
     def __init__(self, data:str, addr:str=""):
+        self.data = data
         self.headers = util.parse_headers(data)
 
         loc = self.headers.get('LOCATION')
