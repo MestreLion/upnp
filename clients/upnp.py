@@ -41,6 +41,7 @@ import sys
 import typing as t
 import urllib.parse
 
+# noinspection PyPep8Naming
 import lxml.etree as ET
 import requests
 
@@ -52,6 +53,7 @@ SSDP_PORT:          int     = 1900
 log = logging.getLogger(__name__)
 
 
+# noinspection PyPep8Naming
 class SEARCH_TARGET(str, enum.Enum):
     """Commonly-used device and service types for UPnP discovery"""
     ALL            = 'ssdp:all'
@@ -254,9 +256,9 @@ class Service:
 
     def __repr__(self):
         attrs = {
-            'service_type' : 'type',
-            'scpdurl'      : 'SCPD',
-            'control_url'  : 'CTRL',
+            'service_type':  'type',
+            'scpdurl':       'SCPD',
+            'control_url':   'CTRL',
             'event_sub_url': 'EVT',
         }
         r = util.formatdict({attrs[k]: v for k, v in vars(self).items() if k in attrs})
@@ -282,7 +284,6 @@ class Action:
         xml_root = SOAPCall(self.service.control_url, self.service.service_type, self.name, **kwargs)
         return {k: xml_root.findtext(f'.//{k}') for k in self.outputs}
 
-
     def __call__(self, **kwargs):
         return self.call(**kwargs)
 
@@ -293,9 +294,10 @@ class Action:
         return f"<{self.name}({', '.join(self.inputs)}) -> [{', '.join(self.outputs)}]>"
 
 
+# noinspection PyPep8Naming
 class util:
     """A bunch of utility functions and helpers, cos' I'm too lazy for a new module"""
-    _re_snake_case = re.compile(r'((?<=[a-z0-9])[A-Z]|(?!^)[A-Z](?=[a-z]))')  # (?!^)([A-Z]+)
+    _re_snake_case = re.compile(r'((?<=[a-z\d])[A-Z]|(?!^)[A-Z](?=[a-z]))')  # (?!^)([A-Z]+)
 
     @classmethod
     def snake_case(cls, camelCase: str) -> str:
@@ -349,7 +351,7 @@ def discover(
         search_target:str=SEARCH_TARGET.ALL, *,
         dest_addr:str=SSDP_ADDR,
         timeout:int=SSDP_MAX_MX,
-    ) -> list:
+) -> list:
     addr = (dest_addr, 1900)
     timeout = util.clamp(timeout, 1, SSDP_MAX_MX)
 
@@ -382,7 +384,7 @@ def discover(
         location = ssdp.headers.get('LOCATION')
 
         if location in devices:
-            #TODO: drop this log after code is mature and skip dupes silently
+            # TODO: drop this log after code is mature and skip dupes silently
             log.debug("Ignoring duplicated device: %s", ssdp)
             continue
 
@@ -398,6 +400,7 @@ def discover(
             log.error("Error adding device %s: %s", ssdp, e)
 
 
+# noinspection PyPep8Naming
 def SOAPCall(url, service, action, **kwargs) -> XMLElement:
     # TODO: Sanitize kwargs!
     xml_args = "\n".join(f"<{k}>{v}</{k}>" for k, v in kwargs.items())
@@ -499,13 +502,10 @@ def main(argv):
             print()
 
 
-
 if __name__ == "__main__":
     log = logging.getLogger(os.path.basename(__file__))
     try:
         sys.exit(main(sys.argv))
-    except UpnpError as e:
-        print(e)
+    except UpnpError as err:
+        print(err)
         sys.exit(1)
-    except Exception as e:
-        raise
