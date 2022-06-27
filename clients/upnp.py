@@ -17,6 +17,10 @@
 
 # Inspired by Nikos Fotoulis public domain code and flyte/upnpclient
 
+# Useful actions:
+# Browse 0 BrowseDirectChildren '*'
+# GetExternalIPAddress
+
 """upnp - Find and use devices via UPnP"""
 
 __all__ = [
@@ -285,12 +289,18 @@ class Action:
             else:
                 self.outputs.append(argname)
 
-    def call(self, **kwargs):
-        xml_root = SOAPCall(self.service.control_url, self.service.service_type, self.name, **kwargs)
+    def call(self, *args, **kwargs):
+        if len(args) > len(self.inputs):
+            raise UpnpValueError("{}() takes {} arguments but {} were given".format(
+                self.name, len(self.inputs), len(args)))
+        kw = {_[0]: _[1] for _ in zip(self.inputs, args)}
+        kw.update(kwargs)
+        xml_root = SOAPCall(self.service.control_url, self.service.service_type,
+                            self.name, **kw)
         return {k: xml_root.findtext(f'.//{k}') for k in self.outputs}
 
-    def __call__(self, **kwargs):
-        return self.call(**kwargs)
+    def __call__(self, *args, **kwargs):
+        return self.call(*args, **kwargs)
 
     def __str__(self):
         return self.name
@@ -490,10 +500,6 @@ def parse_args(argv=None):
                         help="Search target (ST) parameter."
                              " [Default: %(default)s]")
 
-    parser.add_argument('-a', '--action',
-                        help="SOAP action to perform."
-                             " [Default: %(default)s]")
-
     parser.add_argument('-u', '--unicast',
                         default=False,
                         action='store_true',
@@ -505,6 +511,10 @@ def parse_args(argv=None):
                         action='store_true',
                         help="List Devices, Services and Actions."
                              " [Default: List Devices only]")
+
+    parser.add_argument('-a', '--action',
+                        help="SOAP action to perform."
+                             " [Default: %(default)s]")
 
     parser.add_argument(nargs='*',
                         dest='args',
@@ -534,9 +544,9 @@ def main(argv=None):
             if args.full: print('\t' + repr(service))
             for action in service.actions.values():
                 if args.full: print('\t\t' + repr(action))
-                if action.name == args.action:
-                    log.info("Found action matching %s: '%s':", args.action, action)
-                    print(action())
+                if action.name.lower() == args.action.lower():
+                    log.info("Found action matching %s: %r", args.action, action)
+                    print(action(*args.args))
             if args.full: print()
 
 
@@ -545,5 +555,5 @@ if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
     except UpnpError as err:
-        print(err)
+        log.error(err)
         sys.exit(1)
