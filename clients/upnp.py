@@ -480,6 +480,12 @@ def parse_args(argv=None):
                         help="SOAP action to perform."
                              " [Default: %(default)s]")
 
+    parser.add_argument('-f', '--full',
+                        default=False,
+                        action='store_true',
+                        help="List Devices, Services and Actions."
+                             " [Default: List Devices only]")
+
     parser.add_argument(nargs='*',
                         dest='args',
                         help="Arguments to SOAP Action")
@@ -496,18 +502,17 @@ def main(argv):
                         format='%(levelname)-5.5s: %(message)s')
     log.debug(args)
 
-    actions = []
-    print("Devices:")
     for location, device in discover(args.st, timeout=args.timeout, dest_addr=args.destination):
         print(f'{device!r}: {device}')
+        if not (args.action or args.full): continue
         for service in device.services.values():
-            print('\t' + repr(service))
+            if args.full: print('\t' + repr(service))
             for action in service.actions.values():
-                print('\t\t' + repr(action))
+                if args.full: print('\t\t' + repr(action))
                 if action.name == args.action:
                     log.info("Found action matching %s: '%s':", args.action, action)
                     print(action())
-            print()
+            if args.full: print()
 
 
 if __name__ == "__main__":
