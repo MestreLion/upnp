@@ -90,9 +90,11 @@ class XMLElement:
         log.debug("Parsing %s", url)
         # lxml.etree.parse() chokes on URLs if server sets Content-Type header as
         # 'text/xml; charset="utf-8"', as seen on Ubuntu's MiniDLNA rootDesc.xml
-        # So for now we use requests to download and read content
+        # So for now we use requests to download and read bytes content.
+        # Cannot use .text (unicode) content as response contains <?xml ...?>,
+        # which lxml chokes if present on unicode strings
         # return cls(ET.parse(url))
-        return cls.fromstring(requests.get(url).text)
+        return cls.fromstring(requests.get(url).content)
 
     @classmethod
     def prettify(cls, s):
