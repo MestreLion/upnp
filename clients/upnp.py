@@ -49,6 +49,7 @@ SSDP_MAX_MX:        int     = 5  # 2.0 Spec caps value to 5
 SSDP_BUFFSIZE:      int     = 8192
 SSDP_ADDR:          str     = '239.255.255.250'
 SSDP_PORT:          int     = 1900
+SSDP_TTL:           int     = 2  # Spec: should default to 2 and should be configurable
 
 log = logging.getLogger(__name__)
 
@@ -348,24 +349,26 @@ class util:
 
 
 def discover(
-        search_target:str=SEARCH_TARGET.ALL, *,
+        search_target:str=SEARCH_TARGET.ALL.value, *,
         dest_addr:str=SSDP_ADDR,
         timeout:int=SSDP_MAX_MX,
+        ttl:int=SSDP_TTL,
 ) -> list:
-    addr = (dest_addr, 1900)
+    addr = (dest_addr, SSDP_PORT)
     timeout = util.clamp(timeout, 1, SSDP_MAX_MX)
 
     data = re.sub('[\t ]*\r?\n[\t ]*', '\r\n', f"""
             M-SEARCH * HTTP/1.1
-            HOST: {':'.join(str(_) for _ in addr)}
+            HOST: {SSDP_ADDR}:{SSDP_PORT}
             MAN: "ssdp:discover"
             MX: {timeout}
             ST: {search_target}
             CPFN.UPNP.ORG: MestreLion UPnP Library
 
     """.lstrip())
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    for ttl_type in (socket.IP_TTL, socket.IP_MULTICAST_TTL):
+        sock.setsockopt(socket.IPPROTO_IP, ttl_type, ttl)
     sock.settimeout(timeout)
     log.info("Discovering UPnP devices and services: %s", search_target)
     log.debug("Broadcasting discovery search to %s:\n%s", addr, data)
@@ -464,7 +467,7 @@ def parse_args(argv=None):
                              " [Default: '%(default)s' (multicast)]")
 
     parser.add_argument('-s', '--st',
-                        default=SEARCH_TARGET.ALL,
+                        default=SEARCH_TARGET.ALL.value,
                         help="Search target (ST) parameter."
                              " [Default: %(default)s]")
 
