@@ -357,8 +357,12 @@ def discover(
         dest_addr:str=SSDP_ADDR,
         timeout:int=SSDP_MAX_MX,
         ttl:int=SSDP_TTL,
+        unicast:bool=False,
 ) -> list:
-    addr = (dest_addr, SSDP_PORT)
+    if unicast and dest_addr == SSDP_ADDR:
+        log.warning("unicast with the default multicast address makes no sense")
+
+    addr = (dest_addr if unicast else SSDP_ADDR, SSDP_PORT)
     timeout = util.clamp(timeout, 1, SSDP_MAX_MX)
 
     data = re.sub('[\t ]*\r?\n[\t ]*', '\r\n', f"""
@@ -403,6 +407,10 @@ def discover(
                 search_target != ssdp.headers.get('ST')
             ):
                 log.warning("Ignoring non-target device: %s", ssdp)
+                continue
+
+            # Skip if reply addr does not match requested one on multicast
+            if not (unicast or (dest_addr in (SSDP_ADDR, ssdp.addr))):
                 continue
 
             try:
@@ -486,6 +494,12 @@ def parse_args(argv=None):
                         help="SOAP action to perform."
                              " [Default: %(default)s]")
 
+    parser.add_argument('-u', '--unicast',
+                        default=False,
+                        action='store_true',
+                        help="Force unicast search"
+                             " instead of filtering multicast replies.")
+
     parser.add_argument('-f', '--full',
                         default=False,
                         action='store_true',
@@ -508,9 +522,12 @@ def main(argv=None):
                         format='%(levelname)-5.5s: %(message)s')
     log.debug(args)
 
-    for location, device in discover(args.st,
-                                     timeout=args.timeout,
-                                     dest_addr=args.destination):
+    for location, device in discover(
+        args.st,
+        timeout=args.timeout,
+        dest_addr=args.destination,
+        unicast=args.unicast,
+    ):
         print(f'{device!r}: {device}')
         if not (args.action or args.full): continue
         for service in device.services.values():
