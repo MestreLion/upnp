@@ -370,44 +370,48 @@ def discover(
             CPFN.UPNP.ORG: MestreLion UPnP Library
 
     """.lstrip())
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-    for ttl_type in (socket.IP_TTL, socket.IP_MULTICAST_TTL):
-        sock.setsockopt(socket.IPPROTO_IP, ttl_type, ttl)
-    sock.settimeout(timeout)
-    log.info("Discovering UPnP devices and services: %s", search_target)
-    log.debug("Broadcasting discovery search to %s:\n%s", addr, data)
-    sock.sendto(bytes(data, 'ascii'), addr)
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
+        for ttl_type in (socket.IP_TTL, socket.IP_MULTICAST_TTL):
+            sock.setsockopt(socket.IPPROTO_IP, ttl_type, ttl)
+        sock.settimeout(timeout)
+        log.info("Discovering UPnP devices and services: %s", search_target)
+        log.debug("Broadcasting discovery search to %s:\n%s", addr, data)
+        sock.sendto(bytes(data, 'ascii'), addr)
 
-    devices = set()
-    while True:
-        try:
-            data, (addr, _) = sock.recvfrom(SSDP_BUFFSIZE)
-            data = data.decode()
-        except socket.timeout:
-            break
+        devices = set()
+        while True:
+            try:
+                data, (addr, _) = sock.recvfrom(SSDP_BUFFSIZE)
+                data = data.decode()
+            except socket.timeout:
+                break
 
-        log.debug("Incoming search response from %s:\n%s", addr, data)
-        ssdp = SSDP(data, addr)
-        location = ssdp.headers.get('LOCATION')
+            log.debug("Incoming search response from %s:\n%s", addr, data)
+            ssdp = SSDP(data, addr)
+            location = ssdp.headers.get('LOCATION')
 
-        if location in devices:
-            # TODO: drop this log after code is mature and skip dupes silently
-            log.debug("Ignoring duplicated device: %s", ssdp)
-            continue
-        devices.add(location)
+            if location in devices:
+                # TODO: drop this log after code is mature and skip dupes silently
+                log.debug("Ignoring duplicated device: %s", ssdp)
+                continue
+            devices.add(location)
 
-        # Some unrelated devices reply to discovery even when setting appropriate ST in M-SEARCH
-        if search_target != SEARCH_TARGET.ALL and search_target != ssdp.headers.get('ST'):
-            log.warning("Ignoring non-target device: %s", ssdp)
-            continue
+            # Some unrelated devices reply to discovery even when setting a
+            # specific ST in M-SEARCH
+            if (
+                search_target != SEARCH_TARGET.ALL and
+                search_target != ssdp.headers.get('ST')
+            ):
+                log.warning("Ignoring non-target device: %s", ssdp)
+                continue
 
-        try:
-            log.info("Found device: %s", ssdp)
-            yield location, Device.from_ssdp(ssdp)
-        except UpnpValueError as e:
-            log.warning("Error adding device %s: %s", ssdp, e)
-        except UpnpError as e:
-            log.error("Error adding device %s: %s", ssdp, e)
+            try:
+                log.info("Found device: %s", ssdp)
+                yield location, Device.from_ssdp(ssdp)
+            except UpnpValueError as e:
+                log.warning("Error adding device %s: %s", ssdp, e)
+            except UpnpError as e:
+                log.error("Error adding device %s: %s", ssdp, e)
 
 
 # noinspection PyPep8Naming
@@ -498,13 +502,15 @@ def parse_args(argv=None):
     return args
 
 
-def main(argv):
-    args = parse_args(argv or [])
+def main(argv=None):
+    args = parse_args(argv)
     logging.basicConfig(level=args.loglevel,
                         format='%(levelname)-5.5s: %(message)s')
     log.debug(args)
 
-    for location, device in discover(args.st, timeout=args.timeout, dest_addr=args.destination):
+    for location, device in discover(args.st,
+                                     timeout=args.timeout,
+                                     dest_addr=args.destination):
         print(f'{device!r}: {device}')
         if not (args.action or args.full): continue
         for service in device.services.values():
@@ -520,7 +526,7 @@ def main(argv):
 if __name__ == "__main__":
     log = logging.getLogger(os.path.basename(__file__))
     try:
-        sys.exit(main(sys.argv))
+        sys.exit(main(sys.argv[1:]))
     except UpnpError as err:
         print(err)
         sys.exit(1)
