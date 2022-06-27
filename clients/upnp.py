@@ -87,7 +87,10 @@ class XMLElement:
     #     e.find('X:tag', namespaces=e.nsmap), X being (usually) a single lowercase letter
     @classmethod
     def fromstring(cls, data:t.Union[str, bytes]):
-        return cls(ET.fromstring(data, parser=ET.XMLParser(remove_blank_text=True)))
+        try:
+            return cls(ET.fromstring(data, parser=ET.XMLParser(remove_blank_text=True)))
+        except ET.XMLSyntaxError as e:
+            raise UpnpValueError(e)
 
     @classmethod
     def fromurl(cls, url:str):
@@ -399,6 +402,8 @@ def discover(
         try:
             log.info("Found device: %s", ssdp)
             yield location, Device.from_ssdp(ssdp)
+        except UpnpValueError as e:
+            log.warning("Error adding device %s: %s", ssdp, e)
         except UpnpError as e:
             log.error("Error adding device %s: %s", ssdp, e)
 
