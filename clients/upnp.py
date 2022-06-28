@@ -467,7 +467,7 @@ def SOAPCall(url, service, action, **kwargs) -> XMLElement:
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
         description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawTextHelpFormatter,
     )
 
     group = parser.add_mutually_exclusive_group()
@@ -484,27 +484,36 @@ def parse_args(argv=None):
                        action="store_const",
                        help="Verbose mode, output extra info.")
 
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-s', '--st',
+                       dest='st',
+                       default=SEARCH_TARGET.ALL.value,
+                       help="Search target (ST) paramenter for SSDP discovery."
+                            " [Default: %(default)r]")
+    for st in SEARCH_TARGET:
+        # noinspection PyUnresolvedReferences
+        group.add_argument(f"--{st.name.lower().replace('_', '-')}",
+                           dest='st',
+                           const=st.value,
+                           action="store_const",
+                           help=f"Alias for --st %(const)r")
+
     parser.add_argument('-d', '--destination',
                         default=SSDP_ADDR,
-                        help="Destination IP address."
-                             " [Default: '%(default)s' (multicast)]")
-
-    parser.add_argument('-t', '--timeout',
-                        default=3,
-                        type=int,
-                        help="Timeout for SSDP M-SEARCH discovery."
-                             " [Default: '%(default)s' (multicast)]")
-
-    parser.add_argument('-s', '--st',
-                        default=SEARCH_TARGET.ALL.value,
-                        help="Search target (ST) parameter."
-                             " [Default: %(default)s]")
+                        help="Destination IP address for SSDP discovery."
+                             " [Default: %(default)r (multicast)]")
 
     parser.add_argument('-u', '--unicast',
                         default=False,
                         action='store_true',
-                        help="Force unicast search"
-                             " instead of filtering multicast replies.")
+                        help="Force unicast SSDP search when using --destination"
+                             " instead of filtering the multicast replies.")
+
+    parser.add_argument('-t', '--timeout',
+                        default=3,
+                        type=int,
+                        help="Timeout for SSDP search discovery."
+                             " [Default: %(default)s]")
 
     parser.add_argument('-f', '--full',
                         default=False,
@@ -513,8 +522,7 @@ def parse_args(argv=None):
                              " [Default: List Devices only]")
 
     parser.add_argument('-a', '--action',
-                        help="SOAP action to perform."
-                             " [Default: %(default)s]")
+                        help="SOAP action to perform.")
 
     parser.add_argument(nargs='*',
                         dest='args',
