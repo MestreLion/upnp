@@ -49,11 +49,13 @@ import urllib.parse
 import lxml.etree as ET
 import requests
 
-SSDP_MAX_MX:        int     = 5  # 2.0 Spec caps value to 5
+# For most of these constants, see ref/UPnP-arch-DeviceArchitecture-v2.0-20200417-1.pdf
+SSDP_MAX_MX:        int     = 5  # Max reply delay, per 2.0 spec. NOT a timeout!
 SSDP_BUFFSIZE:      int     = 8192
 SSDP_ADDR:          str     = '239.255.255.250'
 SSDP_PORT:          int     = 1900
 SSDP_TTL:           int     = 2  # Spec: should default to 2 and should be configurable
+SSDP_TIMEOUT:       int     = 3  # Not related to spec, and not a total timeout
 
 log = logging.getLogger(__name__)
 
@@ -365,7 +367,7 @@ class util:
 def discover(
         search_target:str=SEARCH_TARGET.ALL.value, *,
         dest_addr:str=SSDP_ADDR,
-        timeout:int=SSDP_MAX_MX,
+        timeout:int=SSDP_TIMEOUT,
         ttl:int=SSDP_TTL,
         unicast:bool=False,
 ) -> list:
@@ -373,13 +375,14 @@ def discover(
         log.warning("unicast with the default multicast address makes no sense")
 
     addr = (dest_addr if unicast else SSDP_ADDR, SSDP_PORT)
-    timeout = util.clamp(timeout, 1, SSDP_MAX_MX)
+    timeout = util.clamp(timeout, 1)
+    mx = util.clamp(timeout, 1, SSDP_MAX_MX)
 
     data = re.sub('[\t ]*\r?\n[\t ]*', '\r\n', f"""
             M-SEARCH * HTTP/1.1
             HOST: {SSDP_ADDR}:{SSDP_PORT}
             MAN: "ssdp:discover"
-            MX: {timeout}
+            MX: {mx}
             ST: {search_target}
             CPFN.UPNP.ORG: MestreLion UPnP Library
 
@@ -512,7 +515,7 @@ def parse_args(argv=None):
     parser.add_argument('-t', '--timeout',
                         default=3,
                         type=int,
-                        help="Timeout for SSDP search discovery."
+                        help="SSDP search discovery timeout after no replies."
                              " [Default: %(default)s]")
 
     parser.add_argument('-f', '--full',
