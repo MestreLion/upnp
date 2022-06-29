@@ -35,8 +35,8 @@ class UpnpError(Exception):
     pass
 
 
+# noinspection PyPep8Naming
 def external_ip():
-
     def search(regex, text):
         match = regex.search(text)
         if match:
@@ -49,8 +49,8 @@ def external_ip():
         else:
             return search(r, text)
 
-    def sockdata(data):
-        return bytes(re.sub('[\t ]*\r?\n[\t ]*', '\r\n', data.lstrip()), 'utf-8')
+    def sockdata(d):
+        return bytes(re.sub('[\t ]*\r?\n[\t ]*', '\r\n', d.lstrip()), 'utf-8')
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
@@ -73,25 +73,27 @@ def external_ip():
             data = sock.recv(2048).decode()
             log.debug(data)
         except socket.timeout:
-            if endpoints:
-                break
-            raise UpnpError("No UPnP gateway found")
+            break
 
-        service  = search(re.compile(r"^ST:\s*([^\s]+WAN(IP|PPP)Connection:\d+)\s*$",
+        service  = search(re.compile(r"^ST:\s*(\S+WAN(IP|PPP)Connection:\d+)\s*$",
                                      re.IGNORECASE | re.MULTILINE), data)
-        location = search(re.compile(r"^Location:\s*([^\s]+)\s*$",
+        location = search(re.compile(r"^Location:\s*(\S+)\s*$",
                                      re.IGNORECASE | re.MULTILINE), data)
 
         if location and service:
             endpoints.append((location, service))
             if ':WANIPConnection:' in service:
                 break
+    if not endpoints:
+        raise UpnpError("No UPnP gateway found")
 
     controlURL = ""
     for location, service in endpoints:
         log.info("Trying service: %s\t%s", location, service)
         data = requests.get(location).text
-        URLBase = get_tag("URLBase", data) or ("http://" + requests.utils.urlparse(location).netloc)
+        # noinspection PyUnresolvedReferences
+        URLBase = (get_tag("URLBase", data) or
+                   ("http://" + requests.utils.urlparse(location).netloc))
         for serv in get_tag("service", data, alltags=True):
             if get_tag("serviceType", serv) == service:
                 controlURL = get_tag("ControlURL", serv)
@@ -100,8 +102,9 @@ def external_ip():
         if controlURL:
             break
     else:
-        raise UpnpError(f"No controlURL found for server: {location}")
+        raise UpnpError(f"No controlURL found in any gateway")
 
+    # noinspection PyUnresolvedReferences
     url = requests.compat.urljoin(URLBase, controlURL)
     action = "GetExternalIPAddress"
     headers = {
