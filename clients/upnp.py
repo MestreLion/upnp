@@ -56,6 +56,7 @@ SSDP_ADDR:          str     = '239.255.255.250'
 SSDP_PORT:          int     = 1900
 SSDP_TTL:           int     = 2  # Spec: should default to 2 and should be configurable
 SSDP_TIMEOUT:       int     = 3  # Not related to spec, and not a total timeout
+SSDP_SOURCE_PORT:   int     = 4201  # Not in spec. 0 for random or fixed for firewalls
 
 log = logging.getLogger(__name__)
 
@@ -363,6 +364,13 @@ class util:
         if ubound is not None: value = min(value, ubound)
         return value
 
+    @staticmethod
+    def get_network_ip():
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            s.connect(('<broadcast>', 0))
+            return s.getsockname()[0]
+
 
 def discover(
         search_target:str=SEARCH_TARGET.ALL.value, *,
@@ -370,6 +378,7 @@ def discover(
         timeout:int=SSDP_TIMEOUT,
         ttl:int=SSDP_TTL,
         unicast:bool=False,
+        source_port:int=SSDP_SOURCE_PORT,
 ) -> list:
     if unicast and dest_addr == SSDP_ADDR:
         log.warning("unicast with the default multicast address makes no sense")
@@ -393,6 +402,7 @@ def discover(
         sock.settimeout(timeout)
         log.info("Discovering UPnP devices and services: %s", search_target)
         log.debug("Broadcasting discovery search to %s:\n%s", addr, data)
+        sock.bind((util.get_network_ip(), source_port))
         sock.sendto(bytes(data, 'ascii'), addr)
 
         devices = set()
@@ -512,6 +522,12 @@ def parse_args(argv=None):
                         help="Force unicast SSDP search when using --destination"
                              " instead of filtering the multicast replies.")
 
+    parser.add_argument('-p', '--port',
+                        default=SSDP_SOURCE_PORT,
+                        type=int,
+                        help="SSDP source port. 0 for random."
+                             " [Default: %(default)s]")
+
     parser.add_argument('-t', '--timeout',
                         default=3,
                         type=int,
@@ -548,6 +564,7 @@ def main(argv=None):
         timeout=args.timeout,
         dest_addr=args.destination,
         unicast=args.unicast,
+        source_port=args.port,
     ):
         print(f'{device!r}: {device}')
         if not (args.action or args.full): continue
