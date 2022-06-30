@@ -373,13 +373,16 @@ class util:
 
 
 def discover(
-        search_target:str=SEARCH_TARGET.ALL.value, *,
+        search_target:t.Union[str, SEARCH_TARGET]=SEARCH_TARGET.ALL, *,
         dest_addr:str=SSDP_ADDR,
         timeout:int=SSDP_TIMEOUT,
         ttl:int=SSDP_TTL,
         unicast:bool=False,
         source_port:int=SSDP_SOURCE_PORT,
 ) -> list:
+    if isinstance(search_target, SEARCH_TARGET):
+        search_target = search_target.value
+
     if unicast and dest_addr == SSDP_ADDR:
         log.warning("unicast with the default multicast address makes no sense")
 
