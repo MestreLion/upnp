@@ -585,7 +585,7 @@ def main(argv=None):
             if args.full: print('\t' + repr(service))
             for action in service.actions.values():
                 if args.full: print('\t\t' + repr(action))
-                if action.name.lower() == args.action.lower():
+                if args.action and action.name.lower() == args.action.lower():
                     log.info("Found action matching %s: %r", args.action, action)
                     print(action(*args.args))
             if args.full: print()
