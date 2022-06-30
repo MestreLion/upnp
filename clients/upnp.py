@@ -36,6 +36,7 @@ __all__ = [
 
 
 import argparse
+import collections
 import enum
 import logging
 import os.path
@@ -121,7 +122,7 @@ class XMLElement:
     def __init__(self, element):
         if hasattr(element, 'getroot'):  # ElementTree instead of Element
             element = element.getroot()
-        self.e = element
+        self.e: ET.Element = element
 
     def findtext(self, tagpath:str) -> str:
         return self.e.findtext(tagpath, namespaces=self.e.nsmap)
@@ -214,7 +215,7 @@ class Device:
             log.warning("URL and Location mismatch: %s, %s",
                         self.location, self.ssdp.headers.get('LOCATION'))
 
-        self.services = {}
+        self.services: t.Dict[str, Service] = {}
         for node in self.xmlroot.findall('.//device/serviceList/service'):
             service = Service(self, node)
             if service.name in self.services:
@@ -254,7 +255,6 @@ class Device:
         return '<{0.__class__.__name__}({1})>'.format(self, r)
 
 
-# noinspection PyUnresolvedReferences
 class Service:
     def __init__(self, device:Device, service:XMLElement):
         self.device = device
@@ -266,7 +266,7 @@ class Service:
             'SCPDURL',      # Required
         ))
         self.xmlroot = XMLElement.fromurl(util.urljoin(self.device.url_base, self.scpdurl))
-        self.actions = {}
+        self.actions: t.Dict[str, Action] = {}
         for node in self.xmlroot.findall('actionList/action'):
             action = Action(self, node)
             self.actions[action.name] = action
@@ -275,7 +275,7 @@ class Service:
     def name(self):
         return self.service_type.split(':')[-2]
 
-    def __getattr__(self, key):
+    def __getattr__(self, key) -> 'Action':
         try:
             return self.actions[key]
         except KeyError:
@@ -295,7 +295,7 @@ class Service:
         return f'<{self.__class__.__name__}({r})>'
 
 
-# noinspection PyUnresolvedReferences
+# noinspection PyUnr esolvedReferences
 class Action:
     def __init__(self, service:Service=None, action:XMLElement=None):
         self.service = service
@@ -310,7 +310,7 @@ class Action:
             else:
                 self.outputs.append(argname)
 
-    def call(self, *args, **kwargs):
+    def call(self, *args, **kwargs) -> 'util.NamedTuple':
         if len(args) > len(self.inputs):
             raise UpnpValueError("{}() takes {} arguments but {} were given".format(
                 self.name, len(self.inputs), len(args)))
@@ -318,7 +318,8 @@ class Action:
         kw.update(kwargs)
         xml_root = SOAPCall(self.service.control_url, self.service.service_type,
                             self.name, **kw)
-        return {k: xml_root.findtext(f'.//{k}') for k in self.outputs}
+        out = {k: xml_root.e .findtext(f'.//{k}') for k in self.outputs}
+        return util.NamedTuple(self.name, self.outputs)(**out)
 
     def __call__(self, *args, **kwargs):
         return self.call(*args, **kwargs)
@@ -389,6 +390,15 @@ class util:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             s.connect(('<broadcast>', 0))
             return s.getsockname()[0]
+
+    @staticmethod
+    def NamedTuple(*a, **kw):
+        """Named Tuple that also allows instance dict-like access foo['bar']"""
+        NT = collections.namedtuple(*a, **kw)
+        NT._getindex = NT.__getitem__
+        NT.__getitem__ = lambda self, x: \
+            self._getindex(x) if isinstance(x, int) else getattr(self, x)
+        return NT
 
 
 def discover(
