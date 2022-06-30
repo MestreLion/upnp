@@ -80,6 +80,7 @@ class DIRECTION(str, enum.Enum):
 # Exceptions
 class UpnpError(Exception): pass
 class UpnpValueError(UpnpError, ValueError): pass
+class UpnpAttributeError(UpnpError, AttributeError): pass
 
 
 class XMLElement:
@@ -273,6 +274,12 @@ class Service:
     @property
     def name(self):
         return self.service_type.split(':')[-2]
+
+    def __getattr__(self, key):
+        try:
+            return self.actions[key]
+        except KeyError:
+            raise UpnpAttributeError(f"Service '{self.name}' has no action '{key}'")
 
     def __str__(self):
         return self.name
