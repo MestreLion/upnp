@@ -180,18 +180,18 @@ class SSDP:
 class Device:
     """UPnP Device"""
     @classmethod
-    def from_ssdp(cls, device:SSDP):
-        return cls(ssdp=device)
+    def from_ssdp(cls, ssdp:SSDP):
+        location = ssdp.headers.get('LOCATION')
+        if not location:
+            raise UpnpValueError(f"Empty SSDP LOCATION: {ssdp}")
+        return cls(location, ssdp=ssdp)
 
-    @classmethod
-    def from_ssdp_data(cls, data: str):
-        return cls(data=data)
-
-    def __init__(self, url:str="", *, ssdp:SSDP=None, data:str=""):
-        self.ssdp     = ssdp or SSDP(data)
-        self.location = url or self.ssdp.headers.get('LOCATION')
-        self.xmlroot  = XMLElement.fromurl(self.location)
-        self.url_base = self.xmlroot.findtext('URLBase') or util.urljoin(self.location, '.')
+    def __init__(self, location:str, *, ssdp:SSDP=None):
+        self.location: str              = location
+        self.ssdp:     t.Optional[SSDP] = ssdp
+        self.xmlroot:  XMLElement       = XMLElement.fromurl(self.location)
+        self.url_base: str              = (self.xmlroot.findtext('URLBase') or
+                                           util.urljoin(self.location, '.'))
         util.attr_tags(self, self.xmlroot, 'device', '', tags=(
             'deviceType',        # Required
             'friendlyName',      # Required
@@ -206,9 +206,9 @@ class Device:
             'UPC',               # Allowed
         ))
 
-        if url and self.ssdp and url != self.ssdp.headers.get('LOCATION'):
+        if self.ssdp and self.ssdp.headers.get('LOCATION') != self.location:
             log.warning("URL and Location mismatch: %s, %s",
-                        url, self.ssdp.headers.get('LOCATION'))
+                        self.location, self.ssdp.headers.get('LOCATION'))
 
         self.services = {}
         for node in self.xmlroot.findall('device//serviceList/service'):
@@ -322,16 +322,17 @@ class util:
         return re.sub(cls._re_snake_case, r'_\1', camelCase).lower()
 
     @classmethod
-    def attr_tags(cls, obj, node:XMLElement, tagpath:str="", baseurl:str='', tags:tuple=()) -> None:
+    def attr_tags(cls, obj, node:XMLElement,
+                  tagpath:str="", baseurl:str="", tags:tuple=()) -> None:
         """Magic method to set attributes from XML tag(name)s
 
-        Tag names must be leafs, not paths, with optional <tagpath> prefix
-        Automatically convert names from camelCaseURL to camel_case_url
+        Tag names must be leafs, not paths, with optional <tagpath> prefix.
+        Automatically convert names from camelCaseURL to camel_case_url.
         URLs, judged by URL-ending tag name, are joined with <baseurl>
         """
         if tagpath: tagpath += '/'
         for tag in tags:
-            attr  = cls.snake_case(tag)
+            attr = cls.snake_case(tag)
             value = node.findtext(tagpath+tag) or ""
             if value and baseurl and attr.endswith('url'):
                 value = cls.urljoin(baseurl, value)
