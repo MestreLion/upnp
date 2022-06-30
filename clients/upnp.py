@@ -108,7 +108,10 @@ class XMLElement:
         # Cannot use .text (unicode) content as response contains <?xml ...?>,
         # which lxml chokes if present on unicode strings
         # return cls(ET.parse(url))
-        return cls.fromstring(requests.get(url).content)
+        try:
+            return cls.fromstring(requests.get(url).content)
+        except requests.RequestException as e:
+            raise UpnpError(e)
 
     @classmethod
     def prettify(cls, s):
@@ -217,18 +220,23 @@ class Device:
 
     @property
     def name(self):
-        return f'{self.friendly_name} @ {self.address}'
+        return self.friendly_name or self.address
+
+    @property
+    def model(self):
+        desc = self.model_description
+        name = self.model_name
+        if name in desc:
+            name = ""
+        return " ".join(filter(None, (desc, name)))
 
     @property
     def fullname(self):
-        if self.model_description:
-            description = self.model_description
-            if self.model_name not in self.model_description:
-                description += " " + self.model_name
-        else:
-            description = self.model_name
-
-        return f"{self.name} ({description}) [{self.manufacturer}]"
+        name = self.name
+        model = self.model
+        if model and not model == name:
+            name += f" ({model})"
+        return name
 
     @property
     def address(self):
@@ -238,7 +246,7 @@ class Device:
         return self.fullname
 
     def __repr__(self):
-        r = f'{self.address!r}, {self.friendly_name!r}, {self.location!r}, {self.udn!r}'
+        r = f'{self.udn!r}, {self.location!r}, {self.friendly_name!r}'
         return '<{0.__class__.__name__}({1})>'.format(self, r)
 
 
@@ -445,9 +453,9 @@ def discover(
                 log.info("Found device: %s", ssdp)
                 yield Device.from_ssdp(ssdp)
             except UpnpValueError as e:
-                log.warning("Error adding device %s: %s", ssdp, e)
+                log.debug("Error reading device from %s: %s", ssdp, e)
             except UpnpError as e:
-                log.error("Error adding device %s: %s", ssdp, e)
+                log.warning("Error reading device from %s: %s", ssdp, e)
 
 
 # noinspection PyPep8Naming
