@@ -379,7 +379,7 @@ def discover(
         ttl:int=SSDP_TTL,
         unicast:bool=False,
         source_port:int=SSDP_SOURCE_PORT,
-) -> list:
+) -> t.Iterable[Device]:
     if isinstance(search_target, SEARCH_TARGET):
         search_target = search_target.value
 
@@ -405,7 +405,8 @@ def discover(
         sock.settimeout(timeout)
         log.info("Discovering UPnP devices and services: %s", search_target)
         log.debug("Broadcasting discovery search to %s:\n%s", addr, data)
-        sock.bind((util.get_network_ip(), source_port))
+        if source_port:
+            sock.bind((util.get_network_ip(), source_port))
         sock.sendto(bytes(data, 'ascii'), addr)
 
         devices = set()
@@ -441,7 +442,7 @@ def discover(
 
             try:
                 log.info("Found device: %s", ssdp)
-                yield location, Device.from_ssdp(ssdp)
+                yield Device.from_ssdp(ssdp)
             except UpnpValueError as e:
                 log.warning("Error adding device %s: %s", ssdp, e)
             except UpnpError as e:
@@ -562,7 +563,7 @@ def main(argv=None):
                         format='%(levelname)-5.5s: %(message)s')
     log.debug(args)
 
-    for location, device in discover(
+    for device in discover(
         args.st,
         timeout=args.timeout,
         dest_addr=args.destination,
