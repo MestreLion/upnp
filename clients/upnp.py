@@ -214,8 +214,11 @@ class Device:
                         self.location, self.ssdp.headers.get('LOCATION'))
 
         self.services = {}
-        for node in self.xmlroot.findall('device//serviceList/service'):
+        for node in self.xmlroot.findall('.//device/serviceList/service'):
             service = Service(self, node)
+            if service.name in self.services:
+                log.warning("Duplicated service in Device %r: %s",
+                            self.udn, service.name)
             self.services[service.service_type] = service
 
     @property
@@ -269,10 +272,10 @@ class Service:
 
     @property
     def name(self):
-        return self.service_id[self.service_id.rindex(":")+1:]
+        return self.service_type.split(':')[-2]
 
     def __str__(self):
-        return self.service_type
+        return self.name
 
     def __repr__(self):
         attrs = {
@@ -409,6 +412,7 @@ def discover(
 
     """.lstrip())
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
+        # Note: TTL has a *very* different meaning on multicast packets!
         for ttl_type in (socket.IP_TTL, socket.IP_MULTICAST_TTL):
             sock.setsockopt(socket.IPPROTO_IP, ttl_type, ttl)
         sock.settimeout(timeout)
@@ -421,12 +425,12 @@ def discover(
         devices = set()
         while True:
             try:
-                data, (addr, _) = sock.recvfrom(SSDP_BUFFSIZE)
+                data, (addr, port) = sock.recvfrom(SSDP_BUFFSIZE)
                 data = data.decode()
             except socket.timeout:
                 break
 
-            log.debug("Incoming search response from %s:\n%s", addr, data)
+            log.debug("Incoming search response from %s:%s\n%s", addr, port, data)
             ssdp = SSDP(data, addr)
             location = ssdp.headers.get('LOCATION')
 
@@ -450,7 +454,7 @@ def discover(
                 continue
 
             try:
-                log.info("Found device: %s", ssdp)
+                log.info("Discovered: %s", ssdp)
                 yield Device.from_ssdp(ssdp)
             except UpnpValueError as e:
                 log.debug("Error reading device from %s: %s", ssdp, e)
