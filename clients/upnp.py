@@ -181,7 +181,6 @@ class SSDP:
         return f'<{self.__class__.__name__}({desc})>'
 
 
-# noinspection PyUnresolvedReferences
 class Device:
     """UPnP Device"""
     @classmethod
@@ -216,6 +215,7 @@ class Device:
                         self.location, self.ssdp.headers.get('LOCATION'))
 
         self.services: t.Dict[str, Service] = {}
+        self.actions:  t.Dict[str, Action]  = {}  # Maybe should be a property
         for node in self.xmlroot.findall('.//device/serviceList/service'):
             service = Service(self, node)
             if any(service.name in _ for _ in self.services):
@@ -223,6 +223,11 @@ class Device:
                             self.udn, service.name)
             self.services[service.service_type] = service
             setattr(self, service.name, service)
+            dupes = self.actions.keys() & service.actions  # 1337!
+            if dupes:
+                log.warning("Duplicated action(s) in Device %r: %s",
+                            self.udn, dupes)
+            self.actions.update(service.actions)
 
     @property
     def name(self):
@@ -346,7 +351,7 @@ class Action:
 
     def __repr__(self):
         return (f"<{self.__class__.__name__} {self.name}({', '.join(self.inputs)})"
-                f"-> [{', '.join(self.outputs)}]>")
+                f" -> [{', '.join(self.outputs)}]>")
 
 
 # noinspection PyPep8Naming
