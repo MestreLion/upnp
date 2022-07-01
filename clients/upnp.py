@@ -218,7 +218,7 @@ class Device:
         self.services: t.Dict[str, Service] = {}
         for node in self.xmlroot.findall('.//device/serviceList/service'):
             service = Service(self, node)
-            if service.name in self.services:
+            if any(service.name in _ for _ in self.services):
                 log.warning("Duplicated service in Device %r: %s",
                             self.udn, service.name)
             self.services[service.service_type] = service
@@ -270,7 +270,7 @@ class Device:
 
 class Service:
     def __init__(self, device:Device, service:XMLElement):
-        self.device = device
+        self.device:  Device = device
         util.attr_tags(self, service, '', device.url_base, tags=(
             'serviceType',  # Required
             'serviceId',    # Required
@@ -283,16 +283,20 @@ class Service:
         for node in self.xmlroot.findall('actionList/action'):
             action = Action(self, node)
             self.actions[action.name] = action
+            setattr(self, action.name, action)
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.service_type.split(':')[-2]
 
-    def __getattr__(self, key) -> 'Action':
+    def __getitem__(self, key:str) -> 'Action':
         try:
             return self.actions[key]
         except KeyError:
-            raise UpnpAttributeError(f"Service '{self.name}' has no action '{key}'")
+            return getattr(self, key)
+
+    def __getattr__(self, key:str) -> 'Action':
+        raise UpnpAttributeError(f"Service '{self.name}' has no action '{key}'")
 
     def __str__(self):
         return self.name
@@ -334,14 +338,15 @@ class Action:
         out = {k: xml_root.e .findtext(f'.//{k}') for k in self.outputs}
         return util.NamedTuple(self.name, self.outputs)(**out)
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, **kwargs) -> 'util.NamedTuple':
         return self.call(*args, **kwargs)
 
     def __str__(self):
         return self.name
 
     def __repr__(self):
-        return f"<{self.name}({', '.join(self.inputs)}) -> [{', '.join(self.outputs)}]>"
+        return (f"<{self.__class__.__name__} {self.name}({', '.join(self.inputs)})"
+                f"-> [{', '.join(self.outputs)}]>")
 
 
 # noinspection PyPep8Naming
