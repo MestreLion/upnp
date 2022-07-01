@@ -222,6 +222,7 @@ class Device:
                 log.warning("Duplicated service in Device %r: %s",
                             self.udn, service.name)
             self.services[service.service_type] = service
+            setattr(self, service.name, service)
 
     @property
     def name(self):
@@ -246,6 +247,18 @@ class Device:
     @property
     def address(self):
         return (self.ssdp and self.ssdp.addr) or util.hostname(self.location)
+
+    def __getitem__(self, key:str) -> 'Service':
+        try:
+            if key in self.services:
+                return self.services[key]
+            if isinstance(key, SEARCH_TARGET):
+                return self.services[key.value]
+        except KeyError:
+            return getattr(self, key)
+
+    def __getattr__(self, key:str) -> 'Service':
+        raise UpnpAttributeError(f"Device '{self.udn}' has no service '{key}'")
 
     def __str__(self):
         return self.fullname
