@@ -610,7 +610,7 @@ def parse_args(argv=None):
     return args
 
 
-def main(argv=None):
+def cli(argv=None):
     args = parse_args(argv)
     logging.basicConfig(level=args.loglevel,
                         format='%(levelname)-5.5s: %(message)s')
@@ -623,22 +623,32 @@ def main(argv=None):
         unicast=args.unicast,
         source_port=args.port,
     ):
-        print(f'{device!r}: {device}')
-        if not (args.action or args.full): continue
+        if args.action:
+            action = device.actions[args.action]
+            if action.name.lower() == args.action.lower():
+                log.info("Executing on %s: %s.%s(%s)",
+                         device, action.service, action, args.args)
+                print(action(*args.args))
+                return
+            continue
+
+        print(repr(device))
+        print(f"{device} [{device.manufacturer}]")
+        if not args.full:
+            print()
+            continue
+
         for service in device.services.values():
-            if args.full: print('\t' + repr(service))
+            print(f"\t{service!r}")
             for action in service.actions.values():
-                if args.full: print('\t\t' + repr(action))
-                if args.action and action.name.lower() == args.action.lower():
-                    log.info("Found action matching %s: %r", args.action, action)
-                    print(action(*args.args))
-            if args.full: print()
+                print(f"\t\t{action!r}")
+        print()
 
 
 if __name__ == "__main__":
     log = logging.getLogger(os.path.basename(__file__))
     try:
-        sys.exit(main(sys.argv[1:]))
+        sys.exit(cli(sys.argv[1:]))
     except UpnpError as err:
         log.error(err)
         sys.exit(1)
