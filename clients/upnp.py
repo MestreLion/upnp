@@ -18,8 +18,19 @@
 # Inspired by Nikos Fotoulis public domain code and flyte/upnpclient
 
 # Useful actions:
-# Browse 0 BrowseDirectChildren '*'
 # GetExternalIPAddress
+# GetDefaultConnectionService
+# GetStatusInfo
+# GetNATRSIPStatus
+# GetTotalBytesReceived / GetTotalBytesSent
+# GetGenericPortMappingEntry 0..x
+# Browse 0 BrowseDirectChildren '*'
+
+# Useful subscriptions
+# SUBSCRIBE /evt/IPConn HTTP/1.1
+# Host: 10.10.10.1:50628
+# Callback: <http://10.10.10.100:4200/ServiceProxy5>
+# NT: upnp:event
 
 """upnp - Find and use devices via UPnP"""
 
@@ -31,6 +42,8 @@ __all__ = [
     'SOAPCall',
     'UpnpError',
     'UpnpValueError',
+    'UpnpAttributeError',
+    'cli',
     'discover',
 ]
 
@@ -432,6 +445,11 @@ def discover(
         unicast:bool=False,
         source_port:int=SSDP_SOURCE_PORT,
 ) -> t.Iterable[Device]:
+    """Send an SSDP M-SEARCH message and return received Devices
+
+    Multicast is used by default even for unicast addresses, as some devices
+    (namely old TP-Link routers) only reply to multicast on 239.255.255.250
+    """
     if isinstance(search_target, SEARCH_TARGET):
         search_target = search_target.value
 
@@ -442,7 +460,7 @@ def discover(
     timeout = util.clamp(timeout, 1)
     mx = util.clamp(timeout, 1, SSDP_MAX_MX)
 
-    data = re.sub('[\t ]*\r?\n[\t ]*', '\r\n', f"""
+    data = re.sub(r'[\t ]*\r?\n[\t ]*', '\r\n', f"""
             M-SEARCH * HTTP/1.1
             HOST: {SSDP_ADDR}:{SSDP_PORT}
             MAN: "ssdp:discover"
@@ -504,7 +522,8 @@ def discover(
 
 # noinspection PyPep8Naming
 def SOAPCall(url, service, action, **kwargs) -> XMLElement:
-    # TODO: Sanitize kwargs!
+    # TODO: Sanitize kwargs based on input types
+    # TODO: Convert output values based on output types
     xml_args = "\n".join(f"<{k}>{v}</{k}>" for k, v in kwargs.items())
     data = f"""
         <?xml version="1.0"?>

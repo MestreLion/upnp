@@ -1,0 +1,8 @@
+- Split the single-module client/upnp.py client library into a proper client/ package
+	- Deadline: when it reaches 1000 lines
+
+- Subscribe to events
+	- external endpoint callback OR
+	- function callback, starting an embedded listening server
+
+- Packaging, as always
