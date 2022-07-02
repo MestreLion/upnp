@@ -53,6 +53,7 @@ import collections
 import enum
 import logging
 import os.path
+import platform
 import re
 import socket
 import sys
@@ -63,14 +64,33 @@ import urllib.parse
 import lxml.etree as ET
 import requests
 
+__title__ = 'upnptool'
+__version__ = '2022.07'
+
 # For most of these constants, see ref/UPnP-arch-DeviceArchitecture-v2.0-20200417-1.pdf
 SSDP_MAX_MX:        int     = 5  # Max reply delay, per 2.0 spec. NOT a timeout!
 SSDP_BUFFSIZE:      int     = 8192
 SSDP_ADDR:          str     = '239.255.255.250'
 SSDP_PORT:          int     = 1900
 SSDP_TTL:           int     = 2  # Spec: should default to 2 and should be configurable
+
 SSDP_TIMEOUT:       int     = 3  # Not related to spec, and not a total timeout
 SSDP_SOURCE_PORT:   int     = 4201  # Not in spec. 0 for random or fixed for firewalls
+
+"""
+# REF: UDA2/1.3.2
+USER-AGENT
+Allowed. Specified by UPnP vendor. String. Field value shall begin with the following “product tokens” (defined
+by HTTP/1.1). The first product token identifes the operating system in the form OS name/OS version, the
+second token represents the UPnP version and shall be UPnP/2.0, and the third token identifes the product
+using the form product name/product version. For example, “USER-AGENT: unix/5.1 UPnP/2.0 MyProduct/1.0”.
+"""
+SSDP_USER_AGENT:    str     = ' '.join((
+    '/'.join((__title__, __version__)),
+    "UPnP/2.0",
+    '/'.join(map(platform.uname().__getitem__, (0, 2))),  # Linux/5.4.0-120-generic
+))
+
 
 log = logging.getLogger(__name__)
 
@@ -466,6 +486,7 @@ def discover(
             MAN: "ssdp:discover"
             MX: {mx}
             ST: {search_target}
+            USER-AGENT: {SSDP_USER_AGENT}
             CPFN.UPNP.ORG: MestreLion UPnP Library
 
     """.lstrip())
