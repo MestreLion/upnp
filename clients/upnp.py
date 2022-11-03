@@ -77,20 +77,29 @@ SSDP_TTL:           int     = 2  # Spec: should default to 2 and should be confi
 SSDP_TIMEOUT:       int     = 3  # Not related to spec, and not a total timeout
 SSDP_SOURCE_PORT:   int     = 4201  # Not in spec. 0 for random or fixed for firewalls
 
-"""
-# REF: UDA2/1.3.2
+"""REF: UDA2/1.3.2
 USER-AGENT
 Allowed. Specified by UPnP vendor. String. Field value shall begin with the following “product tokens” (defined
 by HTTP/1.1). The first product token identifes the operating system in the form OS name/OS version, the
 second token represents the UPnP version and shall be UPnP/2.0, and the third token identifes the product
-using the form product name/product version. For example, “USER-AGENT: unix/5.1 UPnP/2.0 MyProduct/1.0”.
-"""
-SSDP_USER_AGENT:    str     = ' '.join((
+using the form product name/product version. For example, “USER-AGENT: unix/5.1 UPnP/2.0 MyProduct/1.0”."""
+SSDP_USER_AGENT: str = ' '.join((
     '/'.join((__title__, __version__)),
     "UPnP/2.0",
     '/'.join(map(platform.uname().__getitem__, (0, 2))),  # Linux/5.4.0-120-generic
 ))
 
+"""REF: UDA2/1.3.2
+CPUUID.UPNP.ORG
+Allowed.uuid of the control point. When the control point is implemented in a UPnP device it is recommended
+to use the UDN of the co-located UPnP device. When implemented, all specified requirements for uuid usage
+in devices also apply for control points.See section 1.1.4. Note that when Device Protection is implemented
+the CPUUID.UPNP.ORG shall be the same as the uuid used in Device Protection.
+REF: UDA2/1.3.2
+The following UUID generation algorithm is recommended: Time & MAC-based algorithm as specified in
+
+"""
+SSDP_CPUUID: str = "ed5c6d80-ec1a-4623-b711-117b88a88af1"
 
 log = logging.getLogger(__name__)
 
@@ -487,6 +496,7 @@ def discover(
             MX: {mx}
             ST: {search_target}
             USER-AGENT: {SSDP_USER_AGENT}
+            CPUUID.UPNP.ORG: {SSDP_CPUUID}
             CPFN.UPNP.ORG: MestreLion UPnP Library
 
     """.lstrip())
